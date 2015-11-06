@@ -67,9 +67,12 @@ namespace :deploy do
     task :backup_manifest do
       on roles :web do
         within release_path do
+          backup_path = release_path.join('assets_manifest_backup')
+
+          execute :mkdir, '-p', backup_path
           execute :cp,
-            release_path.join('public', 'assets', 'manifest*'),
-            release_path.join('assets_manifest_backup')
+            detect_manifest_path,
+            backup_path
         end
       end
     end
@@ -78,8 +81,7 @@ namespace :deploy do
       on roles :web do
         within release_path do
           source = release_path.join('assets_manifest_backup')
-          target = capture(:ls, release_path.join('public', 'assets',
-                                                  'manifest*')).strip
+          target = detect_manifest_path
           if test "[[ -f #{source} && -f #{target} ]]"
             execute :cp, source, target
           else
@@ -91,6 +93,14 @@ namespace :deploy do
       end
     end
 
+    def detect_manifest_path
+      %w(.sprockets-manifest* manifest*.*).each do |pattern|
+        candidate = release_path.join('public', 'assets', pattern)
+        return capture(:ls, candidate).strip if test(:ls, candidate)
+      end
+      msg = 'Rails assets manifest file not found.'
+      warn msg
+      fail Capistrano::FileNotFound, msg
+    end
   end
-
 end
